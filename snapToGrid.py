@@ -18,6 +18,8 @@ class SnapToGrid:
 
     def __init__(self):
         """
+        __init__
+
         Takes no arguments, and does nothing... yet.
         """
         
@@ -25,23 +27,49 @@ class SnapToGrid:
 
     def __call__(self, lat, lon, data, gridLat, gridLon):
         """
-        Takes as arguments the latitude and longitude spacings,
-        and creates a SnapToGrid object containing numpy arrays 
-        of the latitude and longitude grid definitions.
-        """
+        __call__
 
+        This class special method takes as arguments the latitude 
+        and longitude arrays, the data array which we wish to 
+        regrid, and the lat and lon grids we are mapping to.
+
+        returns: numpy array of regridded data. Grid cells not
+        covered by original data are masked.
+        """
+        return self.__granToGrid(lat,lon,data,gridLat,gridLon)
+
+    def __granToGrid(self, lat, lon, data, gridLat, gridLon):
+        """
+        __granToGrid
+
+        This private class method takes as arguments the latitude 
+        and longitude arrays, the data array which we wish to 
+        regrid, and the lat and lon grids we are mapping to.
+
+        returns: numpy array of regridded data. Grid cells not
+        covered by original data are masked.
+        """
         lat  = np.ravel(lat)
         lon  = np.ravel(lon)
         data = np.ravel(data)
         newData = griddata(lat,lon,data,gridLat,gridLon)
         return newData
 
-    def granToGrid(self,dataGranule):
+    @staticmethod
+    def regrid(lat, lon, data, gridLat, gridLon):
         """
-        granToGrid(dataGranule)
+        regrid
 
-        This class method takes as input a numpy array 
-        containing data product that we desire to grid.
+        This static class method takes as arguments the latitude 
+        and longitude arrays, the data array which we wish to regrid, 
+        and the lat and lon grids we are mapping to.
 
+        returns: numpy array of regridded data. Grid cells not
+        covered by original data are masked.
         """
-        pass
+        lat  = np.ravel(lat)
+        lon  = np.ravel(lon)
+        data = np.ravel(data)
+        newData = griddata(lat,lon,data,gridLat,gridLon)
+        return newData
+
