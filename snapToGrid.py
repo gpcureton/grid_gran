@@ -1,29 +1,41 @@
+#!/usr/bin/env python
+# encoding: utf-8
+"""
+snapToGrid.py
+
+This module contains the SnapToGrid class, which allows the regridding 
+of a dataset from one grid to another.
+
+This python class implements a gridding procedure developed
+by Nick Bearson, and modified by Nadia Smith, both from SSEC.
+
+Created by Geoff Cureton on 2010-04-17.
+Copyright (c) 2010 University of Wisconsin SSEC. All rights reserved.
+"""
+
 import numpy as np
 from matplotlib.mlab import griddata
 
 class SnapToGrid:
 
     """
-    CLASS SnapToGrid
+    SnapToGrid
 
-    This python class implements a gridding prodedure developed
-    by Nick Bearson, and modified by Nadia Smith, both from SSEC.
 
-    Upon instantiation the class object contains the definition
-    of the required grid. Subsequent passage of the 
-
-    Geoff Cureton, SSEC
-    April 2010
     """
 
-    def __init__(self):
+    def __init__(self,interp='nn'):
         """
         __init__
 
         Takes no arguments, and does nothing... yet.
         """
-        
-        pass
+        self.interp=interp
+        # TODO : Make grid arrays data for the class instance.
+        # TODO :     This way, we only read in the grids once,
+        # TODO :     and can keep calling new data arrays for 
+        # TODO :     same grid. 
+
 
     def __call__(self, lat, lon, data, gridLat, gridLon):
         """
@@ -52,11 +64,11 @@ class SnapToGrid:
         lat  = np.ravel(lat)
         lon  = np.ravel(lon)
         data = np.ravel(data)
-        newData = griddata(lat,lon,data,gridLat,gridLon)
+        newData = griddata(lat,lon,data,gridLat,gridLon,interp=self.interp)
         return newData
 
     @staticmethod
-    def regrid(lat, lon, data, gridLat, gridLon):
+    def regrid(lat, lon, data, gridLat, gridLon,interp='nn'):
         """
         regrid
 
@@ -70,6 +82,6 @@ class SnapToGrid:
         lat  = np.ravel(lat)
         lon  = np.ravel(lon)
         data = np.ravel(data)
-        newData = griddata(lat,lon,data,gridLat,gridLon)
+        newData = griddata(lat,lon,data,gridLat,gridLon,interp=interp)
         return newData
 
