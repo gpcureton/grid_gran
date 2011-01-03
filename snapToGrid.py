@@ -82,9 +82,9 @@ class SnapToGrid:
         return newData
 
     @staticmethod
-    def snapGrid(lat, lon, data, gridLat, gridLon,saveGrid=True):
+    def snapGrid_numpy(lat, lon, data, gridLat, gridLon,saveGrid=True):
         """
-        snapGrid
+        snapGrid (numpy)
 
         This static class method takes as arguments the latitude 
         and longitude arrays, the data array which we wish to regrid, 
@@ -108,37 +108,6 @@ class SnapToGrid:
                     mapped to
             covered by original data are masked.
 
-        Example code....
-
-            N = 10000
-            dataLat = 30.*np.random.rand(N)
-            dataLon = 30.*np.random.rand(N)
-            data = 0.5*(dataLat + dataLon)
-
-            ppl.figure()
-            ppl.scatter(dataLon,dataLat,s=1.,c=data,faceted=False)
-            ppl.colorbar()
-            ppl.show()
-
-            degInc = 0.2
-            grids = np.mgrid[0.:30.+degInc:degInc,0.:30.:degInc]
-            gridLat,gridLon = grids[0],grids[1]
-
-            reload(utils.snapToGrid)
-            gridData = utils.snapToGrid.SnapToGrid.snapGrid(dataLat, dataLon, data, gridLat, gridLon)
-
-            ppl.figure()
-            ppl.scatter(gridLon,gridLat,s=2.5,c=gridData,faceted=False)
-            ppl.colorbar()
-            ppl.show()
-
-            gridDataMasked = ma.masked_less(gridData,0.)
-
-            ppl.figure()
-            ppl.scatter(gridLon,gridLat,s=2.5,c=gridDataMasked,faceted=False)
-            ppl.colorbar()
-            ppl.show()
-
         """
         # Array for the gridded data, initialised with -999.9
         gridData = np.ones(np.shape(gridLat))*-999.9
@@ -149,34 +118,6 @@ class SnapToGrid:
         print "gridLatInc = ",gridLatInc
         print "gridLonInc = ",gridLonInc
         print "shape(gridData) = ",np.shape(gridData)
-
-        #weave.inline(codeSnapGrid,
-            #arg_names=['EBBT_indices','L_to_EBBT_tp','L_to_EBBT_rad','bandIndex','npts','radiance','bTemp'],
-            #include_dirs=self.include_dirs,
-            #headers=self.headers,
-            #force=0)
-
-        codeGetBracket = """
-            int latGridIdxLo;
-            int latGridIdxHi;
-            int lonGridIdxLo;
-            int lonGridIdxHi;
-
-            latGridIdxLo = 1;
-            latGridIdxHi = 2;
-            lonGridIdxLo = 3;
-            lonGridIdxHi = 4;
-
-            printf("latGridIdxLo = %d\\n",latGridIdxLo);
-            printf("latGridIdxHi = %d\\n",latGridIdxHi);
-            printf("lonGridIdxLo = %d\\n",lonGridIdxLo);
-            printf("lonGridIdxHi = %d\\n",lonGridIdxHi);
-
-            //latGridIdxLo = latVal/gridLatInc;
-            //latGridIdxHi = latGridIdxLo + 1;
-            //lonGridIdxLo = lonVal/gridLonInc;
-            //lonGridIdxHi = lonGridIdxLo + 1;
-        """
 
         for idx in range(np.size(lat)):
             latVal,lonVal,dataVal = lat[idx],lon[idx],data[idx]
@@ -191,14 +132,6 @@ class SnapToGrid:
             #print "latGridIdxLo,latGridIdxHi = ",latGridIdxLo,latGridIdxHi
             #print "lonGridIdxLo,lonGridIdxHi = ",lonGridIdxLo,lonGridIdxHi
 
-            #weave.inline(codeGetBracket,
-                #arg_names=['latVal','lonVal','gridLatInc','gridLonInc'],
-                #include_dirs=self.include_dirs,
-                #headers=self.headers,
-                #force=0)
-
-            #print "(C) latGridIdxLo,latGridIdxHi = ",latGridIdxLo,latGridIdxHi
-            #print "(C) lonGridIdxLo,lonGridIdxHi = ",lonGridIdxLo,lonGridIdxHi
 
             gridPoints = (
                 [ latGridIdxLo, latGridIdxLo, latGridIdxHi, latGridIdxHi ],
@@ -221,9 +154,145 @@ class SnapToGrid:
                     #print "snapPoints,gridLat[snapPoints],gridLon[snapPoints],minDist,dist = ",snapPoints,gridLat[snapPoints],gridLon[snapPoints],minDist,dist
                     #print ""
 
-                gridData[snapPoints] = data[idx]
+                gridData[snapPoints] = dataVal
             except IndexError :
                 pass
+
+            #print ""
+            #print ">>>>>>>>>>>>>>>>>>>>>>>>>"
+        return gridData
+
+    @staticmethod
+    def snapGrid_weave(lat, lon, data, gridLat, gridLon,saveGrid=True):
+        """
+        snapGrid (weave)
+
+        This static class method takes as arguments the latitude 
+        and longitude arrays, the data array which we wish to regrid, 
+        and the lat and lon grids we are mapping to.
+
+        Input...
+            lat: 1D array of latitude values
+            lon: 1D array of longitude values
+            data: 1D array of data corresponding to lat and lon
+            gridLat: 2D array defining new latitude grid
+            gridLon: 2D array defining new longitude grid
+            saveGrid: Boolean switch for whether new grid indicies
+                  are saved and returned.
+
+        Returns...
+            newLat: 1D array containing gridded latitude for each value in data
+            newLon: 1D array containing gridded longitude for each value in data
+            latIdx: 1D array containing indicies of gridLat which data values were 
+                    mapped to
+            lonIdx: 1D array containing indicies of gridLon which data values were 
+                    mapped to
+            covered by original data are masked.
+
+        """
+        # Array for the gridded data, initialised with -999.9
+        gridData = np.ones(np.shape(gridLat))*-999.9
+
+        gridLatInc = np.double(np.abs(gridLat[1,0]-gridLat[0,0]))
+        gridLonInc = np.double(np.abs(gridLon[0,1]-gridLon[0,0]))
+
+        print "gridLatInc = ",gridLatInc
+        print "gridLonInc = ",gridLonInc
+        print "shape(gridData) = ",np.shape(gridData)
+
+        N_data = np.size(lat)
+
+        codeSnapGrid = """
+
+
+            printf("exp(2.71) = %f\\n",exp(2.71));
+            printf("floor(2.71) = %f\\n",floor(2.71));
+            printf("(int) floor(2.71) = %d\\n",(int) floor(2.71));
+
+            long idx;
+            long latGridIdxLo, latGridIdxHi, lonGridIdxLo, lonGridIdxHi;
+            double minDist,dist,latVal,lonVal,dataVal;
+            double gridLatInc,gridLonInc;
+
+            //gridLatInc = abs(gridLat[1][0]-gridLat[0][0]);
+            //gridLonInc = abs(gridLon[0][1]-gridLon[0][0]);
+            //printf("gridLatInc = %lf\\n",(double) gridLatInc);
+            //printf("gridLonInc = %lf\\n",(double) gridLonInc);
+
+            printf("N_data = %d\\n",N_data);
+
+            int rows,cols;
+            for (rows=0;rows<5;rows++){
+                for (cols=0;cols<5;cols++){
+                    printf("gridLat[%d][%d] = %lf\\n",rows,cols,gridLat[rows,cols]);
+                }
+            }
+
+            for (rows=0;rows<5;rows++){
+                for (cols=0;cols<5;cols++){
+                    printf("gridLon[%d][%d] = %lf\\n",rows,cols,gridLon[rows,cols]);
+                }
+            }
+
+
+            idx = 0;
+            for (idx=0;idx<1;idx++){
+                latVal = lat[idx];
+                lonVal = lon[idx];
+                dataVal = data[idx];
+
+                printf("\\nlatVal,lonVal,dataVal = %f, %f, %f\\n",latVal,lonVal,dataVal);
+                printf("gridLatInc,gridLonInc = %lf,%lf\\n",(double)gridLatInc,(double)gridLonInc);
+
+                latGridIdxLo = (long) floor(latVal/(double)gridLatInc);
+                latGridIdxHi = latGridIdxLo + 1;
+                lonGridIdxLo = (long) floor(lonVal/(double)gridLonInc);
+                lonGridIdxHi = lonGridIdxLo + 1;
+
+                long gridPoints[2][4] = {
+                    {latGridIdxLo, latGridIdxLo, latGridIdxHi, latGridIdxHi},
+                    {lonGridIdxLo, lonGridIdxHi, lonGridIdxLo, lonGridIdxHi}
+                };
+
+                minDist = 1000.;
+                long gridLatPt,gridLonPt;
+                double latDist,lonDist;
+                int crnrPt,snapCrnrPt;
+
+                for (crnrPt=0;crnrPt<4;crnrPt++){
+                    printf("%ld, %ld\\n",gridPoints[0][crnrPt],gridPoints[1][crnrPt]);
+
+                    gridLatPt = gridPoints[0][crnrPt];
+                    gridLonPt = gridPoints[1][crnrPt];
+
+                    printf("%ld, %ld\\n",gridLatPt,gridLonPt);
+
+                    //latDist = latVal-gridData[gridLatPt][gridLonPt];
+                    //lonDist = lonVal-gridLon[gridLatPt][gridLonPt];
+
+                    //dist = sqrt(latDist*latDist + lonDist*lonDist); 
+                    //printf("dist = %lf\\n",dist);
+
+                    //if (dist < minDist){
+                    //    snapCrnrPt = crnrPt;
+                    //    minDist = dist;
+                    //}
+                }
+                //gridData[gridPoints[0][crnrPt]][] = dataVal
+
+
+            }
+
+
+        """
+
+        weave.inline(codeSnapGrid,
+            arg_names=['N_data','lat','lon','data','gridLat','gridLon','gridData'],
+            headers=['<math.h>'],
+            libraries=['m'],
+            #include_dirs=self.include_dirs,
+            force=1)
+
 
             #print ""
             #print ">>>>>>>>>>>>>>>>>>>>>>>>>"
