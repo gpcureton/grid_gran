@@ -115,23 +115,14 @@ class SnapToGrid:
         gridLatInc = np.abs(gridLat[1,0]-gridLat[0,0])
         gridLonInc = np.abs(gridLon[0,1]-gridLon[0,0])
 
-        print "gridLatInc = ",gridLatInc
-        print "gridLonInc = ",gridLonInc
-        print "shape(gridData) = ",np.shape(gridData)
-
         for idx in range(np.size(lat)):
             latVal,lonVal,dataVal = lat[idx],lon[idx],data[idx]
-            #print "latVal,lonVal,dataVal = ",latVal,lonVal,dataVal
 
             # Determine bracketing indicies
             latGridIdxLo = int(np.floor(latVal/gridLatInc))
             latGridIdxHi = latGridIdxLo + 1
             lonGridIdxLo = int(np.floor(lonVal/gridLonInc))
             lonGridIdxHi = lonGridIdxLo + 1
-
-            #print "latGridIdxLo,latGridIdxHi = ",latGridIdxLo,latGridIdxHi
-            #print "lonGridIdxLo,lonGridIdxHi = ",lonGridIdxLo,lonGridIdxHi
-
 
             gridPoints = (
                 [ latGridIdxLo, latGridIdxLo, latGridIdxHi, latGridIdxHi ],
@@ -143,23 +134,14 @@ class SnapToGrid:
             try :
                 for points in zip(gridPoints[0],gridPoints[1]) :
                     dist = np.sqrt((latVal-gridLat[points])**2. + (lonVal-gridLon[points])**2.)
-                    print "points,gridLat[points],gridLon[points],minDist,dist = ",points,gridLat[points],gridLon[points],minDist,dist
                     if (dist < minDist) :
-                        #print "dist < minDist !!!"
-                        #snapLatIdx = latGridIdx
-                        #snapLonIdx = lonGridIdx
                         snapPoints = points
                         minDist = dist
-                    #gridData[snapLatIdx,snapLonIdx] = data[idx]
-                    #print "snapPoints,gridLat[snapPoints],gridLon[snapPoints],minDist,dist = ",snapPoints,gridLat[snapPoints],gridLon[snapPoints],minDist,dist
-                    #print ""
 
                 gridData[snapPoints] = dataVal
             except IndexError :
                 pass
 
-            #print ""
-            #print ">>>>>>>>>>>>>>>>>>>>>>>>>"
         return gridData
 
     @staticmethod
@@ -195,10 +177,6 @@ class SnapToGrid:
 
         N_data = np.size(lat)
 
-        print "shape(gridLat) = ",np.shape(gridLat)
-        print "shape(gridLon) = ",np.shape(gridLon)
-        print "shape(gridData) = ",np.shape(gridData)
-
         codeSnapGrid = """
 
             long idx;
@@ -206,14 +184,12 @@ class SnapToGrid:
             double latVal,lonVal,dataVal;
             double gridLatInc,gridLonInc;
 
-            //int rows,cols;
+            int rows,cols;
             int gridLatPt,gridLonPt;
             int gridLatPoints[4], gridLonPoints[4];
             double minDist,dist,latDist,lonDist;
             double gridLatVal,gridLonVal;
             int crnrPt,snapCrnrPt;
-
-            printf("N_data = %d\\n",N_data);
 
             gridLatInc = fabs(gridLat(1,0)-gridLat(0,0));
             gridLonInc = fabs(gridLon(0,1)-gridLon(0,0));
@@ -222,8 +198,6 @@ class SnapToGrid:
                 latVal = lat(idx);
                 lonVal = lon(idx);
                 dataVal = data(idx);
-
-                printf("\\nlatVal,lonVal,dataVal = %lf, %lf, %lf\\n\\n",latVal,lonVal,dataVal);
 
                 latGridIdxLo = (int) floor(latVal/gridLatInc);
                 latGridIdxHi = latGridIdxLo + 1;
@@ -244,58 +218,38 @@ class SnapToGrid:
                 
                 for (crnrPt=0;crnrPt<4;crnrPt++){
 
-                    printf("\\n>>>> Corner point %d \\n\\n",crnrPt);
-
                     gridLatPt = (int) gridLatPoints[crnrPt];
                     gridLonPt = (int) gridLonPoints[crnrPt];
 
                     gridLatVal = gridLat(gridLatPt,gridLonPt);
                     gridLonVal = gridLon(gridLatPt,gridLonPt);
 
-                    printf("%d %d %10.4lf %10.4lf\\n",gridLatPt,gridLonPt, gridLatVal,gridLonVal);
-
                     latDist = latVal-gridLatVal;
                     lonDist = lonVal-gridLonVal;
 
-                    printf("latDist, lonDist = %10.4lf %10.4lf\\n", latDist,lonDist);
-
                     dist = sqrt(latDist*latDist + lonDist*lonDist); 
-                    printf("dist = %lf\\n",dist);
 
                     if (dist < minDist){
                         snapCrnrPt = crnrPt;
                         minDist = dist;
                     }
-                /*
-                */
                 }
-                printf("\\nClosest point is: %d %10.4lf\\n\\n",snapCrnrPt,minDist);
-                //gridData[gridPoints[0][crnrPt]][] = dataVal
-            
+
+                gridLatPt = (int) gridLatPoints[snapCrnrPt];
+                gridLonPt = (int) gridLonPoints[snapCrnrPt];
+                gridData(gridLatPt,gridLonPt) = dataVal;
 
             }
 
 
         """
 
-        #print "N_data: ",N_data.dtype,N_data.shape
-        print "lat:  ",lat.dtype,lat.shape
-        print "lon:  ",lon.dtype,lon.shape
-        print "data:  ",data.dtype,data.shape
-        print "gridLat:  ",gridLat.dtype,gridLat.shape
-        print "gridLon:  ",gridLon.dtype,gridLon.shape
-        print "gridData:  ",gridData.dtype,gridData.shape
-
         weave.inline(codeSnapGrid,
-            #arg_names=['N_data','lat','lon','data','gridLat','gridLatInc','gridLon','gridLonInc','gridData'],
             arg_names=['N_data','lat','lon','data','gridLat','gridLon','gridData'],
             type_converters=converters.blitz,
             headers=['<math.h>'],
             libraries=['m'],
             #include_dirs=self.include_dirs,
-            force=1)
+            force=0)
 
-
-            #print ""
-            #print ">>>>>>>>>>>>>>>>>>>>>>>>>"
         return gridData
