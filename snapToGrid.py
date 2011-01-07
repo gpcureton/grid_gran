@@ -30,6 +30,9 @@ class SnapToGrid:
         """
         __init__
 
+        geoFile: filename of a representative geolocation file
+        dataFile: filename of a representative data file
+
         Takes no arguments, and does nothing... yet.
         """
         self.interp=interp
@@ -82,7 +85,7 @@ class SnapToGrid:
         return newData
 
     @staticmethod
-    def snapGrid_numpy(lat, lon, data, gridLat, gridLon,saveGrid=True):
+    def snapGrid_numpy(lat, lon, data, gridLat, gridLon, gridData, saveGrid=True):
         """
         snapGrid (numpy)
 
@@ -96,22 +99,23 @@ class SnapToGrid:
             data: 1D array of data corresponding to lat and lon
             gridLat: 2D array defining new latitude grid
             gridLon: 2D array defining new longitude grid
+            gridData: 2D array defining output data grid. May already 
+                have valid data
             saveGrid: Boolean switch for whether new grid indicies
                   are saved and returned.
 
         Returns...
-            newLat: 1D array containing gridded latitude for each value in data
-            newLon: 1D array containing gridded longitude for each value in data
+            gridData: 2D array containing input data gridded to output data grid 
             latIdx: 1D array containing indicies of gridLat which data values were 
                     mapped to
             lonIdx: 1D array containing indicies of gridLon which data values were 
                     mapped to
-            covered by original data are masked.
 
         """
-        # Array for the gridded data, initialised with -999.9
-        gridData = np.ones(np.shape(gridLat))*-999.9
 
+        print "Shape of data is",np.shape(data)
+        print "Shape of gridData is",np.shape(gridData)
+        
         gridLatInc = np.abs(gridLat[1,0]-gridLat[0,0])
         gridLonInc = np.abs(gridLon[0,1]-gridLon[0,0])
 
@@ -119,9 +123,9 @@ class SnapToGrid:
             latVal,lonVal,dataVal = lat[idx],lon[idx],data[idx]
 
             # Determine bracketing indicies
-            latGridIdxLo = int(np.floor(latVal/gridLatInc))
+            latGridIdxLo = int(np.floor((latVal-gridLat[0,0])/gridLatInc))
             latGridIdxHi = latGridIdxLo + 1
-            lonGridIdxLo = int(np.floor(lonVal/gridLonInc))
+            lonGridIdxLo = int(np.floor((lonVal-gridLon[0,0])/gridLonInc))
             lonGridIdxHi = lonGridIdxLo + 1
 
             gridPoints = (
@@ -140,12 +144,13 @@ class SnapToGrid:
 
                 gridData[snapPoints] = dataVal
             except IndexError :
+                #print "Index error for point: ",points
                 pass
 
         return gridData
 
     @staticmethod
-    def snapGrid_weave(lat, lon, data, gridLat, gridLon,saveGrid=True):
+    def snapGrid_weave(lat, lon, data, gridLat, gridLon, gridData, saveGrid=True):
         """
         snapGrid (weave)
 
@@ -159,49 +164,55 @@ class SnapToGrid:
             data: 1D array of data corresponding to lat and lon
             gridLat: 2D array defining new latitude grid
             gridLon: 2D array defining new longitude grid
+            gridData: 2D array defining output data grid. May already 
+                have valid data
             saveGrid: Boolean switch for whether new grid indicies
                   are saved and returned.
 
         Returns...
-            newLat: 1D array containing gridded latitude for each value in data
-            newLon: 1D array containing gridded longitude for each value in data
+            gridData: 2D array containing input data gridded to output data grid 
             latIdx: 1D array containing indicies of gridLat which data values were 
                     mapped to
             lonIdx: 1D array containing indicies of gridLon which data values were 
                     mapped to
-            covered by original data are masked.
 
         """
-        # Array for the gridded data, initialised with -999.9
-        gridData = np.ones(np.shape(gridLat))*-999.9
-
-        N_data = np.size(lat)
 
         codeSnapGrid = """
 
-            long idx;
+            long nData, nGridRows,nGridCols, idx;
             long latGridIdxLo, latGridIdxHi, lonGridIdxLo, lonGridIdxHi;
             double latVal,lonVal,dataVal;
             double gridLatInc,gridLonInc;
 
-            int rows,cols;
             int gridLatPt,gridLonPt;
             int gridLatPoints[4], gridLonPoints[4];
             double minDist,dist,latDist,lonDist;
             double gridLatVal,gridLonVal;
             int crnrPt,snapCrnrPt;
 
+            nData = (long) Ndata[0];
+            nGridRows = (long) NgridData[0];
+            nGridCols = (long) NgridData[1];
+
+            printf("Shape of data is (%ld,)\\n",nData);
+            printf("Shape of gridData is (%ld, %ld)\\n", nGridRows,nGridCols);
+
+            // Determine the lat and lon grid spacings
             gridLatInc = fabs(gridLat(1,0)-gridLat(0,0));
             gridLonInc = fabs(gridLon(0,1)-gridLon(0,0));
 
-            for (idx=0;idx<N_data;idx++){
+            // Loop through original data, finding matching gridpoint and assigning
+            // data value to that point
+
+            for (idx=0;idx<nData;idx++){
                 latVal = lat(idx);
                 lonVal = lon(idx);
                 dataVal = data(idx);
 
-                latGridIdxLo = (int) floor(latVal/gridLatInc);
+                latGridIdxLo = (int) floor((latVal-gridLat(0,0))/gridLatInc);
                 latGridIdxHi = latGridIdxLo + 1;
-                lonGridIdxLo = (int) floor(lonVal/gridLonInc);
+                lonGridIdxLo = (int) floor((lonVal-gridLon(0,0))/gridLonInc);
                 lonGridIdxHi = lonGridIdxLo + 1;
 
                 gridLatPoints[0] = latGridIdxLo;
@@ -215,6 +226,7 @@ class SnapToGrid:
                 gridLonPoints[3] = lonGridIdxHi;
 
                 minDist = 1000.;
+                snapCrnrPt = 0;
                 
                 for (crnrPt=0;crnrPt<4;crnrPt++){
 
@@ -245,7 +257,7 @@ class SnapToGrid:
         """
 
         weave.inline(codeSnapGrid,
-            arg_names=['N_data','lat','lon','data','gridLat','gridLon','gridData'],
+            arg_names=['lat','lon','data','gridLat','gridLon','gridData'],
             type_converters=converters.blitz,
             headers=['<math.h>'],
             libraries=['m'],
