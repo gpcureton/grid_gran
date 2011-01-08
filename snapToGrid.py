@@ -116,6 +116,8 @@ class SnapToGrid:
         print "Shape of data is",np.shape(data)
         print "Shape of gridData is",np.shape(gridData)
         
+        dataIdx = np.ones(np.shape(gridData),dtype=np.int64) * -99999
+
         gridLatInc = np.abs(gridLat[1,0]-gridLat[0,0])
         gridLonInc = np.abs(gridLon[0,1]-gridLon[0,0])
 
@@ -147,7 +149,9 @@ class SnapToGrid:
                 #print "Index error for point: ",points
                 pass
 
-        return gridData
+            dataIdx[snapPoints] = idx
+
+        return gridData,dataIdx
 
     @staticmethod
     def snapGrid_weave(lat, lon, data, gridLat, gridLon, gridData, saveGrid=True):
@@ -250,18 +254,21 @@ class SnapToGrid:
                 gridLatPt = (int) gridLatPoints[snapCrnrPt];
                 gridLonPt = (int) gridLonPoints[snapCrnrPt];
                 gridData(gridLatPt,gridLonPt) = dataVal;
+                dataIdx(gridLatPt,gridLonPt) = idx;
 
             }
 
 
         """
 
+        dataIdx = np.ones(np.shape(gridData),dtype=np.int64) * -99999
+
         weave.inline(codeSnapGrid,
-            arg_names=['lat','lon','data','gridLat','gridLon','gridData'],
+            arg_names=['lat','lon','data','gridLat','gridLon','gridData','dataIdx'],
             type_converters=converters.blitz,
             headers=['<math.h>'],
             libraries=['m'],
             #include_dirs=self.include_dirs,
             force=0)
 
-        return gridData
+        return gridData,dataIdx
