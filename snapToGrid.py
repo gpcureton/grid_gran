@@ -106,10 +106,8 @@ class SnapToGrid:
 
         Returns...
             gridData: 2D array containing input data gridded to output data grid 
-            latIdx: 1D array containing indicies of gridLat which data values were 
-                    mapped to
-            lonIdx: 1D array containing indicies of gridLon which data values were 
-                    mapped to
+            dataIdx:  2D array containing indicies of input data which are gridded 
+                      to output grid
 
         """
 
@@ -175,10 +173,8 @@ class SnapToGrid:
 
         Returns...
             gridData: 2D array containing input data gridded to output data grid 
-            latIdx: 1D array containing indicies of gridLat which data values were 
-                    mapped to
-            lonIdx: 1D array containing indicies of gridLon which data values were 
-                    mapped to
+            dataIdx:  2D array containing indicies of input data which are gridded 
+                      to output grid
 
         """
 
