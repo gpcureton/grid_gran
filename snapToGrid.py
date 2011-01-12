@@ -180,8 +180,11 @@ class SnapToGrid:
 
         codeSnapGrid = """
 
+            using namespace std;
+
             long nData, nGridRows,nGridCols, idx;
-            long latGridIdxLo, latGridIdxHi, lonGridIdxLo, lonGridIdxHi;
+            int latGridIdxLo, latGridIdxHi, lonGridIdxLo, lonGridIdxHi;
+
             double latVal,lonVal,dataVal;
             double gridLatInc,gridLonInc;
 
@@ -190,6 +193,7 @@ class SnapToGrid:
             double minDist,dist,latDist,lonDist;
             double gridLatVal,gridLonVal;
             int crnrPt,snapCrnrPt;
+            bool rowInBounds,colInBounds;
 
             nData = (long) Ndata[0];
             nGridRows = (long) NgridData[0];
@@ -215,42 +219,58 @@ class SnapToGrid:
                 lonGridIdxLo = (int) floor((lonVal-gridLon(0,0))/gridLonInc);
                 lonGridIdxHi = lonGridIdxLo + 1;
 
-                gridLatPoints[0] = latGridIdxLo;
-                gridLatPoints[1] = latGridIdxLo;
-                gridLatPoints[2] = latGridIdxHi;
-                gridLatPoints[3] = latGridIdxHi;
+                rowInBounds = true;
+                colInBounds = true;
 
-                gridLonPoints[0] = lonGridIdxLo;
-                gridLonPoints[1] = lonGridIdxHi;
-                gridLonPoints[2] = lonGridIdxLo;
-                gridLonPoints[3] = lonGridIdxHi;
-
-                minDist = 1000.;
-                snapCrnrPt = 0;
-                
-                for (crnrPt=0;crnrPt<4;crnrPt++){
-
-                    gridLatPt = (int) gridLatPoints[crnrPt];
-                    gridLonPt = (int) gridLonPoints[crnrPt];
-
-                    gridLatVal = gridLat(gridLatPt,gridLonPt);
-                    gridLonVal = gridLon(gridLatPt,gridLonPt);
-
-                    latDist = latVal-gridLatVal;
-                    lonDist = lonVal-gridLonVal;
-
-                    dist = sqrt(latDist*latDist + lonDist*lonDist); 
-
-                    if (dist < minDist){
-                        snapCrnrPt = crnrPt;
-                        minDist = dist;
-                    }
+                if ((latGridIdxLo<0) || (latGridIdxHi>=nGridRows)){
+                    rowInBounds = false;
+                }
+                if ((lonGridIdxLo<0) || (lonGridIdxHi>=nGridCols)){
+                    colInBounds = false;
                 }
 
-                gridLatPt = (int) gridLatPoints[snapCrnrPt];
-                gridLonPt = (int) gridLonPoints[snapCrnrPt];
-                gridData(gridLatPt,gridLonPt) = dataVal;
-                dataIdx(gridLatPt,gridLonPt) = idx;
+                if (!rowInBounds){
+                    continue;
+                }else if (!colInBounds){
+                    continue;
+                }else{
+                    gridLatPoints[0] = latGridIdxLo;
+                    gridLatPoints[1] = latGridIdxLo;
+                    gridLatPoints[2] = latGridIdxHi;
+                    gridLatPoints[3] = latGridIdxHi;
+
+                    gridLonPoints[0] = lonGridIdxLo;
+                    gridLonPoints[1] = lonGridIdxHi;
+                    gridLonPoints[2] = lonGridIdxLo;
+                    gridLonPoints[3] = lonGridIdxHi;
+
+                    minDist = 1000.;
+                    snapCrnrPt = 0;
+
+                    for (crnrPt=0;crnrPt<4;crnrPt++){
+
+                        gridLatPt = (int) gridLatPoints[crnrPt];
+                        gridLonPt = (int) gridLonPoints[crnrPt];
+
+                        gridLatVal = gridLat(gridLatPt,gridLonPt);
+                        gridLonVal = gridLon(gridLatPt,gridLonPt);
+
+                        latDist = latVal-gridLatVal;
+                        lonDist = lonVal-gridLonVal;
+
+                        dist = sqrt(latDist*latDist + lonDist*lonDist); 
+
+                        if (dist < minDist){
+                            snapCrnrPt = crnrPt;
+                            minDist = dist;
+                        }
+                    }
+
+                    gridLatPt = (int) gridLatPoints[snapCrnrPt];
+                    gridLonPt = (int) gridLonPoints[snapCrnrPt];
+                    gridData(gridLatPt,gridLonPt) = dataVal;
+                    dataIdx(gridLatPt,gridLonPt) = idx;
+                }
 
             }
 
