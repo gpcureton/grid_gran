@@ -35,12 +35,31 @@ class SnapToGrid:
 
         Takes no arguments, and does nothing... yet.
         """
-        self.interp=interp
-        # TODO : Make grid arrays data for the class instance.
-        # TODO :     This way, we only read in the grids once,
-        # TODO :     and can keep calling new data arrays for 
-        # TODO :     same grid. 
 
+        # A default 1 degree grid...
+        degInc = 1.
+        grids = np.mgrid[-90.:90.+degInc:degInc,-180.:180.:degInc]
+        gridLat,gridLon = grids[0],grids[1]
+
+        self.interp=interp
+        self.gridLat = gridLat
+        self.gridLon = gridLon
+        self.gridData = {}
+        self.geoFileList = []
+        self.dataFileList = {}
+        self.grid2GranIdx = np.ones(np.shape(gridLat),dtype=np.int64) * -99999
+        self.grid2GranFileIdx = np.ones(np.shape(gridLat),dtype=np.int64) * -99999
+
+    def writeToFile(self,gridFile='gridFile.h5'):
+        """
+        writeToFile
+
+        gridFile: filename of a representative geolocation file
+
+        """
+        fileObj = pytables.openFile(gridFile,"w")
+        # do some stuff...
+        fileObj.close()
 
     def __call__(self, lat, lon, data, gridLat, gridLon):
         """
@@ -152,7 +171,8 @@ class SnapToGrid:
         return gridData,dataIdx
 
     @staticmethod
-    def snapGrid_weave(lat, lon, data, gridLat, gridLon, gridData, saveGrid=True):
+    def snapGrid_weave(lat, lon, data, gridLat, gridLon, gridData, \
+        gridDataIdx, fillVal, cellAverage=False):
         """
         snapGrid (weave)
 
@@ -168,13 +188,16 @@ class SnapToGrid:
             gridLon: 2D array defining new longitude grid
             gridData: 2D array defining output data grid. May already 
                 have valid data
-            saveGrid: Boolean switch for whether new grid indicies
-                  are saved and returned.
+            gridDegen: 2D array giving the degeneracy of each griddpoint.
+            gridDataIdx: 2D array containing indicies of input data which are gridded 
+                      to output grid
+            fillVal: The desired fill value for this grid type.
 
         Returns...
-            gridData: 2D array containing input data gridded to output data grid 
+            gridData: 2D array containing input data gridded to output data grid.
+                      Same as gridData
             dataIdx:  2D array containing indicies of input data which are gridded 
-                      to output grid
+                      to output grid. Same as gridDataIdx
 
         """
 
@@ -268,8 +291,21 @@ class SnapToGrid:
 
                     gridLatPt = (int) gridLatPoints[snapCrnrPt];
                     gridLonPt = (int) gridLonPoints[snapCrnrPt];
-                    gridData(gridLatPt,gridLonPt) = dataVal;
-                    dataIdx(gridLatPt,gridLonPt) = idx;
+
+                    // Assign data value to this grid cell
+                    if (cellAverage){
+                        if (fabs(gridData(gridLatPt,gridLonPt) - fillVal) < 0.001){
+                            gridData(gridLatPt,gridLonPt) = dataVal;
+                        }else{
+                            gridData(gridLatPt,gridLonPt) += dataVal;
+                        }
+                    }else{
+                        gridData(gridLatPt,gridLonPt) = dataVal;
+                    }
+                    gridDegen(gridLatPt,gridLonPt) += 1;
+
+                    // TODO : Save subsequent data indices in the same gridcell
+                    gridDataIdx(gridLatPt,gridLonPt) = idx;
                 }
 
             }
@@ -277,14 +313,20 @@ class SnapToGrid:
 
         """
 
-        dataIdx = np.ones(np.shape(gridData),dtype=np.int64) * -99999
+        gridDegen = np.zeros(np.shape(gridData),dtype=np.int32)
+        cellAverage = int(cellAverage)
 
         weave.inline(codeSnapGrid,
-            arg_names=['lat','lon','data','gridLat','gridLon','gridData','dataIdx'],
+            arg_names=['lat','lon','data',\
+                       'gridLat','gridLon','gridData',\
+                       'gridDataIdx','cellAverage','gridDegen','fillVal'],
             type_converters=converters.blitz,
             headers=['<math.h>'],
             libraries=['m'],
             #include_dirs=self.include_dirs,
             force=0)
 
-        return gridData,dataIdx
+        if cellAverage :
+            return gridData,gridDataIdx,gridDegen
+        else :
+            return gridData,gridDataIdx
