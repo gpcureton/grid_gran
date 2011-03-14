@@ -294,7 +294,7 @@ class SnapToGrid:
 
                     // Assign data value to this grid cell
                     if (cellAverage){
-                        if (fabs(gridData(gridLatPt,gridLonPt) - fillVal) < 0.001){
+                        if (fabs(gridData(gridLatPt,gridLonPt) - fabs(fillVal)) < 0.001){
                             gridData(gridLatPt,gridLonPt) = dataVal;
                         }else{
                             gridData(gridLatPt,gridLonPt) += dataVal;
