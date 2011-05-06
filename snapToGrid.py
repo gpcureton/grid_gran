@@ -13,10 +13,19 @@ Created by Geoff Cureton on 2010-04-17.
 Copyright (c) 2010 University of Wisconsin SSEC. All rights reserved.
 """
 
+import string, sys
+from glob import glob
+from os import path,uname
+from time import time
+import shlex, subprocess
+
 import numpy as np
 from matplotlib.mlab import griddata
 import scipy.weave as weave
 from scipy.weave import converters
+
+import tables as pytables
+
 
 class SnapToGrid:
 
@@ -30,10 +39,19 @@ class SnapToGrid:
         """
         __init__
 
-        geoFile: filename of a representative geolocation file
-        dataFile: filename of a representative data file
+        geoFileList: Common list of geolocation files used for every dataset 
+                     in this object.
+        dataFileList: Dictionary of one or more datasets, each containing files
+                      corresponding to those in geoFileList.
+        gridLat,gridLon : Equal angle lat and lon grids which the data files are 
+                          gridded to.
+        grid2GranFileIdx: At each grid point, grid2GranFileIdx gives the index in 
+                          geoFileList (and in any dataFileList datafile lists) of 
+                          the file which was gridded to that point. 
+        grid2GranIdx: At each grid point, grid2GranIdx gives the index of the pixel 
+                      which was gridded to that grid point, from the file given by 
+                      dataFileList.
 
-        Takes no arguments, and does nothing... yet.
         """
 
         # A default 1 degree grid...
@@ -50,16 +68,88 @@ class SnapToGrid:
         self.grid2GranIdx = np.ones(np.shape(gridLat),dtype=np.int64) * -99999
         self.grid2GranFileIdx = np.ones(np.shape(gridLat),dtype=np.int64) * -99999
 
-    def writeToFile(self,gridFile='gridFile.h5'):
+    @staticmethod
+    def fileToGridObj(gridFile):
         """
-        writeToFile
+        fileToGridObj
 
-        gridFile: filename of a representative geolocation file
+        gridFile: Name of file containing gridded data
 
         """
-        fileObj = pytables.openFile(gridFile,"w")
-        # do some stuff...
+        print "Reading the file %s" % (gridFile)
+        fileObj = pytables.openFile(gridFile,"r")
+
+        # Create a new object
+        gridObj = SnapToGrid()
+
+        # Read file related datasets into SnapToGrid object
+        gridObj.geoFileList = list(fileObj.getNode("/fileData/geolocationFiles")[:])
+
+        gridObj.grid2GranIdx = fileObj.getNode("/fileData/grid2GranIdx")[:,:]
+        gridObj.grid2GranFileIdx = fileObj.getNode("/fileData/grid2GranFileIdx")[:,:]
+
+        for node in fileObj.walkNodes('/fileData/dataFileLists',classname='Array') :
+            gridObj.dataFileList[node.name] = list(node[:])
+
+        # Read grid related datasets into SnapToGrid object
+        gridObj.gridLat = fileObj.getNode("/gridData/Latitude")[:,:]
+        gridObj.gridLon = fileObj.getNode("/gridData/Longitude")[:,:]
+
+        for node in fileObj.walkNodes('/gridData/gridDataSets',classname='Array') :
+            gridObj.gridData[node.name] = node[:,:]
+
         fileObj.close()
+
+        return gridObj
+
+    def gridObjToFile(self,gridFile='gridFile.h5'):
+        """
+        gridObjToFile
+
+        gridFile: Name of file containing gridded data
+
+        """
+        print "Creating the file %s" % (gridFile)
+        fileObj = pytables.openFile(gridFile,"w")
+
+        # Write the grid latitude and longitude
+        print "Creating the Latitude and Longitude datasets"
+        fileObj.createArray("/gridData","Latitude",self.gridLat, \
+                    createparents=True)
+        fileObj.createArray("/gridData","Longitude",self.gridLon, \
+                    createparents=True)
+
+        # Write the various gridded datasets
+        for dSet in self.gridData.keys() :
+            print "Dataset : ",dSet
+            fileObj.createArray("/gridData/gridDataSets",dSet,self.gridData[dSet], \
+                    createparents=True)
+
+        # Write the list of geolocation files
+        print "Creating the geolocationFiles dataset"
+        fileObj.createArray("/fileData","geolocationFiles", \
+                np.array(self.geoFileList,dtype=np.str), \
+                createparents=True)
+
+        # Write grid2GranFileIdx and grid2GranIdx
+        print "Creating the grid2GranFileIdx and grid2GranIdx datasets"
+        fileObj.createArray("/fileData","grid2GranFileIdx",self.grid2GranFileIdx, \
+                    createparents=True)
+        fileObj.createArray("/fileData","grid2GranIdx",self.grid2GranIdx, \
+                    createparents=True)
+
+        # Write the various datasets lists
+        for dSet in self.dataFileList.keys() :
+            print "Dataset : ",dSet
+            fileObj.createArray("/fileData/dataFileLists",dSet, \
+                    np.array(self.dataFileList[dSet],dtype=np.str), \
+                    createparents=True)
+
+
+        # Flush the file, and close it
+        fileObj.flush()
+        fileObj.close()
+
 
     def __call__(self, lat, lon, data, gridLat, gridLon):
         """
