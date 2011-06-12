@@ -94,6 +94,10 @@ class SnapToGrid:
         # Read grid related datasets into SnapToGrid object
         gridObj.gridLat = fileObj.getNode("/gridData/Latitude")[:,:]
         gridObj.gridLon = fileObj.getNode("/gridData/Longitude")[:,:]
+        try :
+            gridObj.gridDegen = fileObj.getNode("/gridData/gridDegen")[:,:]
+        except :
+            pass
 
         for node in fileObj.walkNodes('/gridData/gridDataSets',classname='Array') :
             gridObj.gridData[node.name] = node[:,:]
@@ -118,6 +122,11 @@ class SnapToGrid:
                     createparents=True)
         fileObj.createArray("/gridData","Longitude",self.gridLon, \
                     createparents=True)
+        try :
+            fileObj.createArray("/gridData","gridDegen",self.gridDegen, \
+                        createparents=True)
+        except :
+            pass
 
         # Write the various gridded datasets
         for dSet in self.gridData.keys() :
@@ -403,7 +412,7 @@ class SnapToGrid:
 
         """
 
-        gridDegen = np.zeros(np.shape(gridData),dtype=np.int32)
+        gridDegen = -999 * np.ones(np.shape(gridData),dtype=np.int32)
         cellAverage = int(cellAverage)
 
         weave.inline(codeSnapGrid,
