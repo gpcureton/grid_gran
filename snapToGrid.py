@@ -26,6 +26,9 @@ from scipy.weave import converters
 
 import tables as pytables
 
+import ctypes
+from numpy.ctypeslib import ndpointer
+
 
 class SnapToGrid:
 
@@ -429,3 +432,88 @@ class SnapToGrid:
             return gridData,gridDataIdx,gridDegen
         else :
             return gridData,gridDataIdx
+
+    @staticmethod
+    def snapGrid_ctypes(dataLat, dataLon, data, gridLat, gridLon, gridData, gridDataIdx):
+        """
+        snapGrid (ctypes)
+
+        This static class method takes as arguments the latitude 
+        and longitude arrays, the data array which we wish to regrid, 
+        and the lat and lon grids we are mapping to.
+
+        Input...
+            lat: 1D array of latitude values
+            lon: 1D array of longitude values
+            data: 1D array of data corresponding to lat and lon
+            gridLat: 2D array defining new latitude grid
+            gridLon: 2D array defining new longitude grid
+            gridData: 2D array defining output data grid. May already 
+                have valid data
+            gridDataIdx: 2D array containing indicies of input data which are gridded 
+                      to output grid
+
+        Returns...
+            gridData: 2D array containing input data gridded to output data grid.
+                      Same as gridData
+            dataIdx:  2D array containing indicies of input data which are gridded 
+                      to output grid. Same as gridDataIdx
+
+        """
+
+        nData = np.int64(data.size)
+        gridRows = np.int32(gridLat.shape[0])
+        gridCols = np.int32(gridLat.shape[1])
+
+        gridData = np.float64(gridData)
+        gridDataIdx  = np.int64(gridDataIdx)
+
+        libDir = path.dirname(__file__)
+        libFile = 'libgriddingAndGranulation.so.1.0.1'
+        libFile = "%s/%s" % (libDir,libFile)
+        lib = ctypes.cdll.LoadLibrary(libFile)
+
+        snapGrid_ctypes = lib.gran2grid
+        snapGrid_ctypes.restype = None
+        snapGrid_ctypes.argtypes = [
+                ndpointer(ctypes.c_double,ndim=1,shape=(nData),flags='C_CONTIGUOUS'),
+                ndpointer(ctypes.c_double,ndim=1,shape=(nData),flags='C_CONTIGUOUS'),
+                ndpointer(ctypes.c_double,ndim=1,shape=(nData),flags='C_CONTIGUOUS'),
+                ctypes.c_int64,
+                ndpointer(ctypes.c_double,ndim=2,shape=(gridRows,gridCols),flags='C_CONTIGUOUS'),
+                ndpointer(ctypes.c_double,ndim=2,shape=(gridRows,gridCols),flags='C_CONTIGUOUS'),
+                ndpointer(ctypes.c_double,ndim=2,shape=(gridRows,gridCols),flags='C_CONTIGUOUS'),
+                ndpointer(ctypes.c_int64,ndim=2,shape=(gridRows,gridCols),flags='C_CONTIGUOUS'),
+                ctypes.c_int32,
+                ctypes.c_int32
+                ]
+
+        t1 = time()
+
+        '''
+        int snapGrid_ctypes(double *lat, 
+                        double *lon, 
+                        double *data, 
+                        long nData, 
+                        double *gridLat,
+                        double *gridLon,
+                        double *gridData,
+                        long *gridDataIdx,
+                        int nGridRows,
+                        int nGridCols
+                        )
+        '''
+
+        retVal = snapGrid_ctypes(dataLat,
+                                 dataLon,
+                                 data,
+                                 nData,
+                                 gridLat,
+                                 gridLon,
+                                 gridData,
+                                 gridDataIdx,
+                                 gridRows,
+                                 gridCols)
+
+        return gridData,gridDataIdx
+
