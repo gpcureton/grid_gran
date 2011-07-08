@@ -13,6 +13,16 @@ Created by Geoff Cureton on 2010-04-17.
 Copyright (c) 2010 University of Wisconsin SSEC. All rights reserved.
 """
 
+file_Date = '$Date$'
+file_Revision = '$Revision$'
+file_Author = '$Author$'
+file_HeadURL = '$HeadURL$'
+file_Id = '$Id$'
+
+__author__ = 'G.P. Cureton <geoff.cureton@ssec.wisc.edu>'
+__version__ = '$Id$'
+__docformat__ = 'Epytext'
+
 import string, sys
 from glob import glob
 from os import path,uname
@@ -461,17 +471,30 @@ class SnapToGrid:
 
         """
 
+        # Enforce some datatypes
+
         nData = np.int64(data.size)
         gridRows = np.int32(gridLat.shape[0])
         gridCols = np.int32(gridLat.shape[1])
 
+        dataLat = np.float64(dataLat)
+        dataLon = np.float64(dataLon)
+        data    = np.float64(data)
+
+        gridLat = np.float64(gridLat)
+        gridLon = np.float64(gridLon)
         gridData = np.float64(gridData)
+
         gridDataIdx  = np.int64(gridDataIdx)
+
+        # Load the C extension library
 
         libDir = path.dirname(__file__)
         libFile = 'libgriddingAndGranulation.so.1.0.1'
         libFile = "%s/%s" % (libDir,libFile)
         lib = ctypes.cdll.LoadLibrary(libFile)
+
+        # Specify the ctypes argument types
 
         snapGrid_ctypes = lib.gran2grid
         snapGrid_ctypes.restype = None
@@ -488,8 +511,6 @@ class SnapToGrid:
                 ctypes.c_int32
                 ]
 
-        t1 = time()
-
         '''
         int snapGrid_ctypes(double *lat, 
                         double *lon, 
@@ -503,6 +524,8 @@ class SnapToGrid:
                         int nGridCols
                         )
         '''
+
+        # Do the gridding...
 
         retVal = snapGrid_ctypes(dataLat,
                                  dataLon,
