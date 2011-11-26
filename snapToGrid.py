@@ -141,32 +141,33 @@ class SnapToGrid:
         except :
             pass
 
-        # Write the various gridded datasets
-        for dSet in self.gridData.keys() :
-            print "Dataset : ",dSet
-            fileObj.createArray("/gridData/gridDataSets",dSet,self.gridData[dSet], \
-                    createparents=True)
-
         # Write the list of geolocation files
-        print "Creating the geolocationFiles dataset"
+        print "\nCreating the geolocationFiles dataset"
         fileObj.createArray("/fileData","geolocationFiles", \
                 np.array(self.geoFileList,dtype=np.str), \
                 createparents=True)
 
-        # Write grid2GranFileIdx and grid2GranIdx
-        print "Creating the grid2GranFileIdx and grid2GranIdx datasets"
-        fileObj.createArray("/fileData","grid2GranFileIdx",self.grid2GranFileIdx, \
-                    createparents=True)
-        fileObj.createArray("/fileData","grid2GranIdx",self.grid2GranIdx, \
-                    createparents=True)
-
         # Write the various datasets lists
+        print "\nCreating the dataFileLists dataset(s)"
         for dSet in self.dataFileList.keys() :
-            print "Dataset : ",dSet
+            print "\tdataFileList dataset : ",dSet
             fileObj.createArray("/fileData/dataFileLists",dSet, \
                     np.array(self.dataFileList[dSet],dtype=np.str), \
                     createparents=True)
 
+        # Write the various gridded datasets
+        print "\nCreating the dataFileLists dataset(s)"
+        for dSet in self.gridData.keys() :
+            print "\tgridData dataset : ",dSet
+            fileObj.createArray("/gridData/gridDataSets",dSet,self.gridData[dSet], \
+                    createparents=True)
+
+        # Write grid2GranFileIdx and grid2GranIdx
+        print "\nCreating the grid2GranFileIdx and grid2GranIdx datasets"
+        fileObj.createArray("/fileData","grid2GranFileIdx",self.grid2GranFileIdx, \
+                    createparents=True)
+        fileObj.createArray("/fileData","grid2GranIdx",self.grid2GranIdx, \
+                    createparents=True)
 
         # Flush the file, and close it
         fileObj.flush()
@@ -477,6 +478,9 @@ class SnapToGrid:
         gridRows = np.int32(gridLat.shape[0])
         gridCols = np.int32(gridLat.shape[1])
 
+        print "gridRows: ",gridRows
+        print "gridCols: ",gridCols
+
         dataLat = np.float64(dataLat)
         dataLon = np.float64(dataLon)
         data    = np.float64(data)
@@ -527,6 +531,7 @@ class SnapToGrid:
 
         # Do the gridding...
 
+        #try :
         retVal = snapGrid_ctypes(dataLat,
                                  dataLon,
                                  data,
@@ -539,4 +544,6 @@ class SnapToGrid:
                                  gridCols)
 
         return gridData,gridDataIdx
+        #except :
+            #return -1
 
