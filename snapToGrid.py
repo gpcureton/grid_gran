@@ -113,7 +113,14 @@ class SnapToGrid:
             pass
 
         for node in fileObj.walkNodes('/gridData/gridDataSets',classname='Array') :
-            gridObj.gridData[node.name] = node[:,:]
+            try :
+                gridObj.gridData[node.name] = node[:,:]
+            except :
+                pass
+            try :
+                gridObj.gridData[node.name] = node[:]
+            except :
+                pass
 
         fileObj.close()
 
@@ -544,6 +551,105 @@ class SnapToGrid:
                                  gridCols)
 
         return gridData,gridDataIdx
-        #except :
-            #return -1
+
+    @staticmethod
+    def gridMoments_ctypes(dataLat, dataLon, data, gridLat, gridLon, gridDataSum, gridDataCount):
+        """
+        gridMoments (ctypes)
+
+        This static class method takes as arguments the latitude 
+        and longitude arrays, the data array which we wish to regrid, 
+        and the lat and lon grids we are mapping to.
+
+        Input...
+            lat: 1D array of latitude values
+            lon: 1D array of longitude values
+            data: 1D array of data corresponding to lat and lon
+            gridLat: 2D array defining new latitude grid
+            gridLon: 2D array defining new longitude grid
+            gridDataSum: 2D array defining output data grid. May already 
+                have valid data
+            gridDataCount: 2D array containing indicies of input data which are gridded 
+                      to output grid
+
+        Returns...
+            gridDataSum: 2D array containing input data gridded to output data grid.
+                      Same as gridDataSum
+            gridDataCount:  2D array containing indicies of input data which are gridded 
+                      to output grid. Same as gridDataCount
+
+        """
+
+        # Enforce some datatypes
+
+        nData = np.int64(data.size)
+        gridRows = np.int32(gridLat.shape[0])
+        gridCols = np.int32(gridLat.shape[1])
+
+        print "gridRows: ",gridRows
+        print "gridCols: ",gridCols
+
+        dataLat = np.float64(dataLat)
+        dataLon = np.float64(dataLon)
+        data    = np.float64(data)
+
+        gridLat = np.float64(gridLat)
+        gridLon = np.float64(gridLon)
+        gridDataSum = np.float64(gridDataSum)
+
+        gridDataCount  = np.int64(gridDataCount)
+
+        # Load the C extension library
+
+        libDir = path.dirname(__file__)
+        libFile = 'libgriddingAndGranulation.so.1.0.1'
+        libFile = "%s/%s" % (libDir,libFile)
+        lib = ctypes.cdll.LoadLibrary(libFile)
+
+        # Specify the ctypes argument types
+
+        snapGrid_ctypes = lib.gran2grid_moments
+        snapGrid_ctypes.restype = None
+        snapGrid_ctypes.argtypes = [
+                ndpointer(ctypes.c_double,ndim=1,shape=(nData),flags='C_CONTIGUOUS'),
+                ndpointer(ctypes.c_double,ndim=1,shape=(nData),flags='C_CONTIGUOUS'),
+                ndpointer(ctypes.c_double,ndim=1,shape=(nData),flags='C_CONTIGUOUS'),
+                ctypes.c_int64,
+                ndpointer(ctypes.c_double,ndim=2,shape=(gridRows,gridCols),flags='C_CONTIGUOUS'),
+                ndpointer(ctypes.c_double,ndim=2,shape=(gridRows,gridCols),flags='C_CONTIGUOUS'),
+                ndpointer(ctypes.c_double,ndim=2,shape=(gridRows,gridCols),flags='C_CONTIGUOUS'),
+                ndpointer(ctypes.c_int64,ndim=2,shape=(gridRows,gridCols),flags='C_CONTIGUOUS'),
+                ctypes.c_int32,
+                ctypes.c_int32
+                ]
+
+        '''
+        int snapGrid_ctypes(double *lat, 
+                        double *lon, 
+                        double *data, 
+                        long nData, 
+                        double *gridLat,
+                        double *gridLon,
+                        double *gridDataSum,
+                        long *gridDataCount,
+                        int nGridRows,
+                        int nGridCols
+                        )
+        '''
+
+        # Do the gridding...
+
+        #try :
+        retVal = snapGrid_ctypes(dataLat,
+                                 dataLon,
+                                 data,
+                                 nData,
+                                 gridLat,
+                                 gridLon,
+                                 gridDataSum,
+                                 gridDataCount,
+                                 gridRows,
+                                 gridCols)
+
+        return gridDataSum,gridDataCount
 
